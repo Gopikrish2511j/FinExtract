@@ -1,0 +1,22 @@
+{
+  "name": "FinExtract Financial Intelligence",
+  "short_name": "FinExtract",
+  "description": "AI-Powered Financial Intelligence Platform for annual reports.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#030712",
+  "theme_color": "#030712",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ]
+}

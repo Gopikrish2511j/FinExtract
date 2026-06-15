@@ -1,0 +1,14 @@
+{
+  "name": "finextract-desktop",
+  "version": "1.0.0",
+  "description": "Desktop wrapper for FinExtract Financial Intelligence Platform",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "package": "electron-builder --win"
+  },
+  "devDependencies": {
+    "electron": "^31.0.1",
+    "electron-builder": "^24.13.3"
+  }
+}
