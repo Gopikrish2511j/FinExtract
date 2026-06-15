@@ -11,16 +11,10 @@ from openpyxl.utils import get_column_letter
 import database
 import extractor
 
-# Logic to find the UI files
-# Locally, it's in ../frontend/dist. On the cloud, we'll put it in a folder named 'static'
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-STATIC_DIR = os.path.join(BASE_DIR, 'static')
+# Correctly locate the frontend/dist folder
+STATIC_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'frontend', 'dist'))
 
-# If the cloud 'static' folder doesn't exist, try looking for the local dev 'dist' folder
-if not os.path.exists(STATIC_DIR):
-    STATIC_DIR = os.path.abspath(os.path.join(BASE_DIR, '..', 'frontend', 'dist'))
-
-# Initialize Flask
+# Initialize Flask with the static folder pointing to the built frontend
 app = Flask(__name__, static_folder=STATIC_DIR, static_url_path='')
 CORS(app)
 
