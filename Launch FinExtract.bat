@@ -7,43 +7,41 @@ echo             FINEXTRACT - AI PLATFORM
 echo ====================================================
 echo.
 
-echo [1/3] Cleaning up previous sessions...
+echo [1/3] Resetting engine...
 taskkill /F /IM python.exe /T >nul 2>&1
+:: Clear python cache
+for /d /r . %%d in (__pycache__) do @if exist "%%d" rd /s /q "%%d" >nul 2>&1
+echo Done.
 echo.
 
-echo [2/3] Starting AI Engine...
+echo [2/3] Starting AI Backend...
 cd /d "F:\Gopi\Personal Documents\app\backend"
 
 :: Check for virtual environment and launch
 if exist venv\Scripts\python.exe (
-    start "FinExtract Backend" /min "venv\Scripts\python.exe" app.py
+    start "FinExtract Backend" "venv\Scripts\python.exe" app.py
 ) else (
     echo [ERROR] Virtual environment not found! Attempting global python...
-    start "FinExtract Backend" /min python app.py
+    start "FinExtract Backend" python app.py
 )
 
 echo.
-echo [3/3] Preparing your Dashboard...
-echo Waiting 5 seconds for initialization...
-timeout /t 5 /nobreak > nul
+echo [3/3] Launching Dashboard...
+echo Please wait for the browser to open...
+timeout /t 6 /nobreak > nul
 
-:: Open in App Mode (Professional look)
-set URL=http://localhost:5000
-where msedge >nul 2>&1
-if %ERRORLEVEL% equ 0 (
-    start msedge --app=%URL%
-) else (
-    start chrome --app=%URL%
-)
+:: Open in Browser
+set URL=http://127.0.0.1:5000
+start %URL%
 
 echo.
 echo ====================================================
-echo    SUCCESS: FinExtract is now running on your laptop!
+echo    SUCCESS: Dashboard launched!
 echo ====================================================
 echo.
-echo IF YOU SEE A WHITE SCREEN:
+echo IF THE SCREEN IS WHITE:
 echo 1. Click on the browser window.
-echo 2. Press CTRL + F5 on your keyboard.
+echo 2. Press CTRL + SHIFT + R (Hard Refresh).
 echo.
-timeout /t 10
+timeout /t 15
 exit

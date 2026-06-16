@@ -11,25 +11,23 @@ from openpyxl.utils import get_column_letter
 import database
 import extractor
 
-# --- CLOUD LOGIC ---
-# Render runs from the 'backend' folder. We need to find the 'static' folder.
+# --- FOLDERS ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# Priority 1: 'static' folder inside backend
 STATIC_DIR = os.path.join(BASE_DIR, 'static')
-
-# If 'static' doesn't exist, try the local dev path
-if not os.path.exists(STATIC_DIR):
+# Priority 2: 'dist' folder in frontend
+if not os.path.exists(os.path.join(STATIC_DIR, 'index.html')):
     STATIC_DIR = os.path.abspath(os.path.join(BASE_DIR, '..', 'frontend', 'dist'))
 
-print(f"DEBUG: Backend starting. Looking for UI in: {STATIC_DIR}")
-if not os.path.exists(STATIC_DIR):
-    print("DEBUG: WARNING! UI folder NOT FOUND. Website will show emergency screen.")
+print(f"--- FinExtract Engine ---")
+print(f"UI Source: {STATIC_DIR}")
 
-app = Flask(__name__, static_folder=STATIC_DIR, static_url_path='')
+app = Flask(__name__, static_folder=STATIC_DIR, static_url_path='/')
 CORS(app)
 
-# Database
 database.init_db()
 
+# Helper
 def get_year_num(year_str):
     m = re.search(r'\d+', year_str)
     return int(m.group(0)) if m else 0
@@ -76,6 +74,11 @@ def upload_file():
     doc_id = database.add_document(filename, filepath)
     return jsonify({'document_id': doc_id, 'filename': filename})
 
+@app.route('/api/documents/<int:doc_id>', methods=['DELETE'])
+def delete_document(doc_id):
+    database.delete_document(doc_id)
+    return jsonify({'success': True})
+
 @app.route('/api/extract', methods=['POST'])
 def trigger_extraction():
     data = request.json
@@ -94,18 +97,20 @@ def get_results(doc_id):
     kpis = database.get_extracted_kpis(doc_id)
     return jsonify({'kpis': process_growth_and_cagr(kpis)})
 
-# UI Serving (Catch-all)
-@app.route('/', defaults={'path': ''})
+# Dashboard Route
+@app.route('/')
+def index():
+    return send_from_directory(app.static_folder, 'index.html')
+
+# Catch-all for SPA and static assets
 @app.route('/<path:path>')
-def serve(path):
-    if path != "" and os.path.exists(os.path.join(app.static_folder, path)):
+def static_proxy(path):
+    # Try serving as a direct file from static folder
+    file_path = os.path.join(app.static_folder, path)
+    if os.path.isfile(file_path):
         return send_from_directory(app.static_folder, path)
-
-    index_path = os.path.join(app.static_folder, 'index.html')
-    if os.path.exists(index_path):
-        return send_from_directory(app.static_folder, 'index.html')
-
-    return f"<h1>FinExtract Server is Running!</h1><p>Website files missing in: <b>{app.static_folder}</b></p>", 200
+    # Otherwise, fallback to index.html (SPA support)
+    return send_from_directory(app.static_folder, 'index.html')
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
