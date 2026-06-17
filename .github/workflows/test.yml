@@ -25,4 +25,4 @@ jobs:
       - name: Run tests
         run: |
           export PYTHONPATH=$PYTHONPATH:$(pwd)/backend
-          python -m pytest tests/test_website.py
+          python -m pytest -v tests/test_website.py
