@@ -13,10 +13,18 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-      - name: Install Locust
-        run: pip install locust
+      - name: Install dependencies
+        run: |
+          pip install -r backend/requirements.txt
+          pip install locust
       - name: Run Headless Load Test
         run: |
-          cd backend && (python app.py &)
-          sleep 5
-          locust -f tests/load_test.py --headless -u 10 -r 2 --run-time 30s --host http://localhost:5000
+          # Start the backend engine in the background
+          cd backend
+          python app.py &
+          
+          # Wait for the engine to warm up
+          sleep 10
+          
+          # Run the load test against the local engine
+          locust -f ../tests/load_test.py --headless -u 10 -r 2 --run-time 30s --host http://localhost:5000
