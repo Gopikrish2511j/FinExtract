@@ -1,0 +1,22 @@
+name: ⚡ Performance Load Test
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  run_load_test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install Locust
+        run: pip install locust
+      - name: Run Headless Load Test
+        run: |
+          cd backend && (python app.py &)
+          sleep 5
+          locust -f tests/load_test.py --headless -u 10 -r 2 --run-time 30s --host http://localhost:5000

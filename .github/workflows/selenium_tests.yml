@@ -1,0 +1,19 @@
+name: 🌐 E2E Selenium (300 Cases)
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  run_selenium:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: pip install -r backend/requirements.txt
+      - name: Run 300 Tests
+        run: python -m pytest tests/test_selenium_battery.py -v
