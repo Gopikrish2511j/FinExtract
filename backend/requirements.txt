@@ -9,3 +9,6 @@ cryptography>=36.0.0
 pytest
 selenium
 webdriver-manager
+bandit
+locust
+Appium-Python-Client

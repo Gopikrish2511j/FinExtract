@@ -4,7 +4,6 @@ import json
 import pdfplumber
 
 def load_synonyms():
-    # Assets are in the same dir as the script in Chaquopy
     syn_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "synonyms.json")
     if os.path.exists(syn_path):
         with open(syn_path, "r") as f:
@@ -12,45 +11,55 @@ def load_synonyms():
     return {}
 
 def normalize_year(text):
-    text = str(text).strip().upper()
-    if len(text) > 30: return None
+    if not text: return None
+    text = str(text).strip().upper().replace("\n", " ")
+    if len(text) > 40: return None
+
+    # 2024-25 -> FY25
     m = re.search(r'\b20(\d{2})[-/](\d{2})\b', text)
     if m: return f"FY{m.group(2)}"
+    # FY 2025 -> FY25
     m = re.search(r'\bFY\s*20(\d{2})\b', text)
     if m: return f"FY{m.group(1)}"
+    # FY 25 -> FY25
     m = re.search(r'\bFY\s*(\d{2})\b', text)
     if m: return f"FY{m.group(1)}"
-    m = re.search(r'\b20(\d{2})\b', text)
-    if m: return f"FY{m.group(1)}"
+    # 2025 -> FY25
+    m = re.search(r'\b(20\d{2})\b', text)
+    if m: return f"FY{m.group(1)[2:]}"
     return None
 
 def parse_numeric_value(val_str):
     if not val_str: return None, None
-    cleaned = val_str.strip()
+    cleaned = str(val_str).strip().replace("\n", " ")
     is_negative = False
     if (cleaned.startswith('(') and cleaned.endswith(')')) or cleaned.startswith('-') or cleaned.startswith('–'):
         is_negative = True
         cleaned = cleaned.replace('(', '').replace(')', '').replace('-', '').replace('–', '').strip()
+
     cleaned = re.sub(r'[^\d\.\s,a-zA-Z]', '', cleaned)
     num_match = re.search(r'[\d,]+(?:\.\d+)?', cleaned)
     if not num_match: return None, None
-    num_str = num_match.group(0)
+
+    num_str = num_match.group(0).replace(',', '')
     try:
-        val_float = float(num_str.replace(',', '').strip())
+        val_float = float(num_str)
     except ValueError: return None, None
+
     if is_negative: val_float = -val_float
-    suffix = cleaned[num_match.end():].strip().lower()
-    prefix = cleaned[:num_match.start()].strip().lower()
-    combined_text = prefix + " " + suffix
+
+    combined_text = cleaned.lower()
     multiplier = 1.0
     if 'cr' in combined_text or 'crore' in combined_text: multiplier = 10000000.0
     elif 'bn' in combined_text or 'billion' in combined_text or re.search(r'\bb\b', combined_text): multiplier = 1000000000.0
     elif 'million' in combined_text or 'mn' in combined_text or re.search(r'\bm\b', combined_text): multiplier = 1000000.0
     elif 'lakh' in combined_text: multiplier = 100000.0
+
     return val_str, val_float * multiplier
 
 def find_matching_kpi(text, synonyms):
-    text_lower = text.lower()
+    if not text: return None
+    text_lower = text.lower().replace("\n", " ")
     for kpi, syn_list in synonyms.items():
         for syn in syn_list:
             if re.search(r'\b' + re.escape(syn.lower()) + r'\b', text_lower):
@@ -66,35 +75,81 @@ def extract_from_tables(pdf_path, synonyms):
                 if not tables: continue
                 for table in tables:
                     if not table or len(table) < 2: continue
+
+                    # 1. Advanced Header Recovery
                     year_cols = {}
-                    header_row = None
-                    for r_idx in range(min(len(table), 3)):
+                    header_rows_count = 0
+                    for r_idx in range(min(len(table), 4)):
+                        found_year = False
                         for col_idx, cell in enumerate(table[r_idx]):
-                            if cell:
-                                norm_y = normalize_year(cell)
-                                if norm_y:
-                                    year_cols[col_idx] = norm_y
-                                    header_row = r_idx
-                    if not year_cols or header_row is None: continue
-                    for r_idx in range(header_row + 1, len(table)):
+                            norm_y = normalize_year(cell)
+                            if norm_y:
+                                year_cols[col_idx] = norm_y
+                                found_year = True
+                        if found_year: header_rows_count = r_idx + 1
+
+                    if not year_cols: continue
+
+                    # 2. Row Processing with Label Merging
+                    prev_label = ""
+                    for r_idx in range(header_rows_count, len(table)):
                         row = table[r_idx]
-                        row_label = ""
-                        for c_idx in range(min(2, len(row))):
-                            if row[c_idx] and not normalize_year(row[c_idx]) and len(str(row[c_idx]).strip()) > 2:
-                                row_label = str(row[c_idx]).strip()
-                                break
-                        if not row_label: continue
-                        matched_kpi = find_matching_kpi(row_label, synonyms)
+                        if not row: continue
+
+                        current_label_parts = [str(c).strip() for c in row[:2] if c and not normalize_year(c)]
+                        current_label = " ".join(current_label_parts)
+
+                        if not current_label and prev_label:
+                            full_label = prev_label
+                        elif current_label and len(current_label) < 4 and prev_label:
+                            full_label = f"{prev_label} {current_label}"
+                        else:
+                            full_label = current_label
+
+                        matched_kpi = find_matching_kpi(full_label, synonyms)
                         if matched_kpi:
                             for col_idx, year in year_cols.items():
                                 if col_idx < len(row) and row[col_idx]:
-                                    raw_val, num_val = parse_numeric_value(row[col_idx])
-                                    if num_val is not None:
+                                    raw, num = parse_numeric_value(row[col_idx])
+                                    if num is not None:
                                         extracted.append({
-                                            'kpi_name': matched_kpi, 'kpi_value_raw': raw_val, 'kpi_value_numeric': num_val,
+                                            'kpi_name': matched_kpi, 'kpi_value_raw': raw, 'kpi_value_numeric': num,
                                             'fiscal_year': year, 'page_number': page_idx+1,
-                                            'source_text': f"Table: {row_label}", 'confidence': 95
+                                            'source_text': f"Table: {full_label}", 'confidence': 98
                                         })
+                        prev_label = full_label
+    except Exception as e: print(f"Table Error: {e}")
+    return extracted
+
+def extract_from_text(pdf_path, synonyms):
+    extracted = []
+    try:
+        with pdfplumber.open(pdf_path) as pdf:
+            for page_idx, page in enumerate(pdf.pages):
+                text = page.extract_text()
+                if not text: continue
+                lines = text.split('\n')
+                for i, line in enumerate(lines):
+                    kpi = find_matching_kpi(line, synonyms)
+                    if not kpi: continue
+
+                    year = None
+                    for offset in range(-2, 3):
+                        if 0 <= i + offset < len(lines):
+                            year = normalize_year(lines[i + offset])
+                            if year: break
+                    if not year: continue
+
+                    numbers = re.finditer(r'\b(?:Rs\.?\s*)?([\d,]+(?:\.\d+)?)\s*(?:Cr|Crore|Million|Mn|Bn|Lakh)?\b', line, re.IGNORECASE)
+                    for match in numbers:
+                        raw, num = parse_numeric_value(match.group(0))
+                        if num is not None:
+                            extracted.append({
+                                'kpi_name': kpi, 'kpi_value_raw': raw, 'kpi_value_numeric': num,
+                                'fiscal_year': year, 'page_number': page_idx+1,
+                                'source_text': line.strip(), 'confidence': 85
+                            })
+                            break
     except: pass
     return extracted
 
@@ -105,8 +160,7 @@ def run_extraction(pdf_path, target_kpis, custom_kpis=None):
         for k in custom_kpis:
             if k.strip(): active_syns[k.strip()] = [k.strip(), k.strip().lower()]
 
-    # Text extraction simplified for performance on mobile
-    results = extract_from_tables(pdf_path, active_syns)
+    results = extract_from_tables(pdf_path, active_syns) + extract_from_text(pdf_path, active_syns)
     merged = {}
     for r in results:
         key = (r['kpi_name'], r['fiscal_year'])
