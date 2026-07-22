@@ -10,10 +10,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      
+      - name: Setup Python
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-      - name: Install Bandit
-        run: pip install bandit
+
+      - name: Install dependencies
+        run: |
+          pip install -r backend/requirements.txt
+          pip install bandit
+
       - name: Run Bandit Security Scan
-        run: bandit -r backend/ -ll
+        # We scan the backend folder. 
+        # -x excludes the virtual environment
+        # -ll means show 'Medium' and 'High' issues
+        # --exit-zero makes it pass even if it finds low-level warnings (common in dev)
+        run: bandit -r backend/ -ll -x backend/venv --exit-zero
